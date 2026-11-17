@@ -4,7 +4,8 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-brightgreen.svg)](https://www.python.org/)
 [![Terraform 1.5+](https://img.shields.io/badge/terraform-1.5+-purple.svg)](https://www.terraform.io/)
 [![AWS Boto3](https://img.shields.io/badge/AWS-Boto3-orange.svg)](https://aws.amazon.com/sdk-for-python/)
-[![Tests](https://img.shields.io/badge/tests-28%20passed-success.svg)]()
+[![Tests](https://img.shields.io/badge/tests-34%20passed-success.svg)]()
+[![Vercel Ready](https://img.shields.io/badge/Vercel-Serverless%20Dashboard-black.svg?logo=vercel)]()
 
 A production-grade, enterprise-ready automated backup, retention, monitoring, and disaster recovery system for Linux EC2 instances backed by Amazon S3, AWS IAM, Amazon CloudWatch, and Amazon SNS.
 
@@ -269,6 +270,88 @@ chmod +x scripts/install_dependencies.sh scripts/setup.sh
 Update `.env` on the instance with the Terraform-generated S3 bucket name:
 ```bash
 sed -i 's/your-backup-bucket-name-here/<s3_bucket_name_from_terraform>/g' .env
+```
+
+---
+
+## Vercel Deployment (Web Dashboard & Management API)
+
+The project includes a serverless web management console (`api/index.py` & `vercel.json`) that can be deployed to **Vercel** with one click or via the Vercel CLI.
+
+### Architectural Separation
+- **Host / EC2 Instance**: Runs the automated backup agent (`backup/backup.py`) where your actual application data and persistent files live.
+- **Vercel Serverless Console**: Connects securely to AWS to monitor backups, view CloudWatch health metrics, and generate **S3 Presigned URLs** for secure direct archive downloads from any browser.
+
+```mermaid
+flowchart LR
+    DevOpsUser["DevOps Engineer / Admin"] -->|HTTPS| VercelApp["Vercel Serverless Dashboard<br/>(api/index.py)"]
+    VercelApp -->|List & Head Object| S3Bucket[("Amazon S3 Bucket")]
+    VercelApp -->|Query Health| CloudWatch["Amazon CloudWatch"]
+    VercelApp -->|Generate Presigned URL| DevOpsUser
+    DevOpsUser -->|Secure Direct Download| S3Bucket
+```
+
+### Option 1: Deploy via Vercel Git Integration (Recommended)
+1. Push your repository to **GitHub**:
+   ```bash
+   git push origin main
+   ```
+2. In the [Vercel Dashboard](https://vercel.com/new), click **Import Project** and select your GitHub repository.
+3. In **Environment Variables**, add the following:
+   - `S3_BUCKET_NAME`: Name of your S3 backup bucket (from Terraform output)
+   - `S3_BACKUP_PREFIX`: `backups`
+   - `AWS_REGION`: `us-east-1` (or your chosen region)
+   - `AWS_ACCESS_KEY_ID`: Dedicated read-only IAM access key (see IAM policy below)
+   - `AWS_SECRET_ACCESS_KEY`: Dedicated read-only IAM secret key
+4. Click **Deploy**. Vercel will automatically build the `@vercel/python` serverless function.
+
+### Option 2: Deploy via Vercel CLI
+```bash
+# Install Vercel CLI globally (if not already installed)
+npm install -g vercel
+
+# Deploy project to Vercel
+vercel
+
+# Add environment variables
+vercel env add S3_BUCKET_NAME
+vercel env add AWS_REGION
+vercel env add AWS_ACCESS_KEY_ID
+vercel env add AWS_SECRET_ACCESS_KEY
+
+# Deploy to production
+vercel --prod
+```
+
+### Least-Privilege IAM Policy for Vercel Web Console
+Create a dedicated IAM user for Vercel with this minimal read-only policy:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowS3BackupListingAndDownload",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::your-backup-bucket-name",
+        "arn:aws:s3:::your-backup-bucket-name/*"
+      ]
+    },
+    {
+      "Sid": "AllowCloudWatchHealthQuery",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
 ```
 
 ---
