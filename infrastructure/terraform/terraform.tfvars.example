@@ -1,0 +1,12 @@
+# AWS Automated Backup & Recovery - Terraform Variables Example
+# Copy this file to 'terraform.tfvars' and customize.
+
+aws_region                    = "us-east-1"
+environment                   = "prod"
+bucket_prefix                 = "my-company-ec2-backup"
+retention_days_standard_ia    = 30
+retention_days_glacier        = 90
+retention_days_expiration     = 365
+cloudwatch_log_retention_days = 30
+alert_email                   = "devops-alerts@example.com"
+backup_schedule_expression    = "cron(0 2 * * ? *)"
